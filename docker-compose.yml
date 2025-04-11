@@ -1,0 +1,55 @@
+services:
+  mysql-db:
+    image: mysql:8.0
+    container_name: task-management-database
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: task_management
+    ports:
+      - "3306:3306"
+    networks:
+      - task-management-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  backend:
+    build:
+      context: backend
+      dockerfile: Dockerfile
+    container_name: task-management-backend
+    depends_on:
+      mysql-db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-db:3306/task_management
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: password
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/health | grep -q 200"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 0
+    networks:
+      - task-management-network
+
+  frontend:
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+      args:
+        API_URL: http://backend:8080
+    container_name: task-management-frontend
+    depends_on:
+     backend:
+       condition: service_healthy
+    ports:
+      - "3000:3000"
+    networks:
+      - task-management-network
+
+networks:
+  task-management-network:
+    driver: bridge
